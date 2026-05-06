@@ -222,7 +222,14 @@ mongoose.connect(process.env.MONGODB_URI)
 const app = express();
 const port = process.env.PORT || 5000;
 
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ 
+  origin: [
+    'http://localhost:5173',
+    'https://translator-frontend-o1rw.onrender.com'
+    ],
+    methods: ['GET', 'POST'],
+    credentials: true
+    }));
 
 // Configure multer for file upload
 const storage = multer.diskStorage({
