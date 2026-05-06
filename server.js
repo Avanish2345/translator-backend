@@ -193,6 +193,7 @@ app.post('/translate-pdf', upload.single('file'), async (req, res) => {
 
 app.listen(port, () => console.log(`Node.js backend running on http://localhost:${port}`));*/
 
+const natural = require('natural');
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -237,6 +238,30 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
 });
 const upload = multer({ storage: storage });
+
+function splitIntoChunks(text, maxChunkLength = 1000) {
+    const tokenizer = new natural.SentenceTokenizer();
+    const sentences = tokenizer.tokenize(text);
+
+    const chunks = [];
+    let currentChunk = '';
+
+    for (const sentence of sentences) {
+
+        if ((currentChunk + sentence).length > maxChunkLength) {
+            chunks.push(currentChunk);
+            currentChunk = sentence;
+        } else {
+            currentChunk += ' ' + sentence;
+        }
+    }
+
+    if (currentChunk) {
+        chunks.push(currentChunk);
+    }
+
+    return chunks;
+} 
 
 // Route to handle text translation
 app.post('/translate', express.json(), async (req, res) => {
@@ -328,7 +353,7 @@ app.post('/translate-pdf', upload.single('file'), async (req, res) => {
             text: extractedText,
             use_pretrained: true
         });*/
-        const response = await axios.post('https://avanish3412-translator-model.hf.space/translate/', {
+        /* const response = await axios.post('https://avanish3412-translator-model.hf.space/translate/', {
             text: extractedText,
             use_pretrained: true
         });
@@ -343,7 +368,39 @@ app.post('/translate-pdf', upload.single('file'), async (req, res) => {
         res.json({
             original_text: extractedText,
             translated_text: response.data.translated_text
-        });
+        }); */
+
+    // Split into chunks
+const chunks = splitIntoChunks(extractedText);
+
+let finalTranslation = '';
+
+// Translate chunk-by-chunk
+for (const chunk of chunks) {
+
+    const response = await axios.post(
+        'https://avanish3412-translator-model.hf.space/translate/',
+        {
+            text: chunk,
+            use_pretrained: true
+        }
+    );
+
+    finalTranslation += response.data.translated_text + '\n';
+}
+
+// Save in MongoDB
+await Translation.create({
+    sourceText: extractedText,
+    translatedText: finalTranslation,
+    method: 'file'
+});
+
+// Send response
+res.json({
+    original_text: extractedText,
+    translated_text: finalTranslation
+});
 
     } catch (error) {
         //console.error('Translation failed:', error.message);
